@@ -1,0 +1,174 @@
+---
+title: "R_Básico"
+author : "J.Ballesta"
+date: 22/09/24
+lang : es 
+format: 
+     docx:
+          fig-width: 6
+          fig-height: 4
+          css: styles.css
+          geometry: "a4paper"
+          author: "J.Ballesta"
+          date-format: "DD/MM/YY"
+          date: "22/09/24"
+          abstract: " 
+ Una pequeña muestra de manejo básico de R, para los que empiezan. Mi plan es ir completando el proyecto con más imformación siempre eminentemente práctica.
+__________
+
+ Eine kurze Demonstration der grundlegenden Handhabung von R für diejenigen, die gerade anfangen. Mein Plan ist es, das Projekt mit weiteren Informationen zu ergänzen, wobei der Schwerpunkt stets auf praktischen Anwendungen liegt.
+__________
+
+ Brief demonstration of basic R handling for those who are just starting. My plan is to continue enhancing the project with more information, always with a focus on practical applications.
+          "
+bibliography: references.bib
+
+editor: visual
+---
+
+# Introducción
+
+Una pequeña demostración en [R](https://cran.r-project.org "CRAN"), usando [Quarto](https://quarto.org) y desde [RStudio](https://posit.co/download/rstudio-desktop/), donde veremos un análisis de datos exploratorio preliminar (EDA en sus siglas en ingles).
+
+```{r}
+#
+#    Trabajaremos con el dataset disponible Nile, para conocer en detalle la información de #Nile
+help(Nile)
+# pasamos los datos del data set a una variable de trabajo 
+datos <- Nile
+# podemos ver los diez primeros datos 
+head(datos, 10)
+# podemos ver los 10 últimos datos
+tail(datos, 10)
+
+```
+
+## Análisis preliminar de los datos
+
+Hacemos a continuación un breve análisis de los datos, siempre usando R Standard, por ahora sin recurrir a ningún *package* de R.
+
+```{r}
+#
+#    Vemos la estructura de los datos
+str(datos)
+# hacemos un resumen de las magnitudes estadísticas del conjunto de datos 
+summary(datos)
+# Vemos que tenemos una serie temporal del 1.871 al 1.970
+```
+
+### Análisis gráfico de los datos
+
+Para ver la distribución de los datos presentaremos varios gráficos de los mismos.
+
+```{r}
+#
+#    Gráfico boxplot, para ver la distribución de nuestros datos y si hay algún valor atípico.
+boxplot(datos,
+        main= "Gráfico Boxplot",
+        xlab= "Caudal anual en el rio Nilo en Assuan años 1.871 - 1.970",
+        ylab= expression(paste("Caudal Anual en : ", 10^{8}, m^{3}))
+        )
+
+```
+
+```{r}
+#
+#    Gráfico de evolución en el tiempo del caudal
+plot (datos,
+      main = "Evolución en el tiempo",
+      xlab="Año",
+      ylab= "Caudal")
+# para dar alguna referencia dibujaremos dos lineas horizontales para la media (azul) y la 
+# mediana (rojo) del caudal
+abline(h=mean(datos),
+       col="blue" )
+#
+abline (h=median(datos),
+        col="red",
+        lty=2)
+# para dar claridad al gráfico añadimos una leyenda para las dos líneas horizontales 
+legend("topright",
+       legend=c("Caudal medio", "Caudal mediano"),
+       col=c("blue", "red"), 
+       pch=16)
+
+```
+
+```{r}
+#
+#    a continuación haremos un histograma de la distribución de caudales
+hist(datos,
+     breaks = 10, 
+     main= "Distribución de caudales",
+     xlab="Caudal",
+     ylab="Frecuencia")
+# en este caso añadiremos dos líneas verticales para ver donde están la media y la mediana
+abline(v=mean(datos),
+       col="blue" )
+#
+abline (v=median(datos),
+        col="red",
+        lty=2)
+# para dar claridad al gráfico añadimos una leyenda para las dos líneas verticales 
+legend("topright",
+       legend=c("Caudal medio", "Caudal mediano"),
+       col=c("blue", "red"), 
+       pch=16)
+
+```
+
+```{r}
+#
+# podemos hacer el histogrma por densidad de distribución de los caudales
+hist(datos,
+     breaks = 10, 
+     freq = FALSE,
+     main = "Distribución de caudales",
+     xlab = "Caudal",
+     ylab = "Densidad")
+# calculamos la distribución de densidad y la añadimos al gráfico
+densidad <- density (datos)
+#
+lines(densidad,
+      col="darkgreen",
+      lty=2, lwd=1)
+# en este caso añadiremos dos líneas verticales para ver donde están la media y la mediana
+abline(v=mean(datos),
+       col="blue" )
+#
+abline (v=median(datos),
+        col="red",
+        lty=2)
+# para dar claridad al gráfico añadimos una leyenda para las líneas añadidas 
+legend("topright",
+       legend=c("Caudal medio", "Caudal mediano", "Densidad de frec."),
+       col=c("blue", "red", "darkgreen"), 
+       pch=16)
+
+```
+
+### Series temporales
+
+Como hemos visto anteriormente estamos trabajando con un tipo de datos llamado "*Time-Series*", este tipo de datos entre otras posibilidades, tiene posibilidad de una función especifica de gráfico.
+
+```{r}
+#
+#    Damos salida gráfica a los datos con la función ts.plot()
+ts.plot(datos,
+        main="Evolución del caudal del Nilo 1.871 a 1.970",
+        xlab="Años",
+        ylab="Caudal")
+
+```
+
+Para acceder a la estructura de los datos en este caso que tenemos un tipo de dato *Time-Series*, uso la función *print()*
+
+```{r}
+#
+#    Imprimo los datos de la serie temporal, y obtengo :
+# - Start / Inicio de la serie
+# - End / Fin de la serie
+# - Frequency / Frecuencia (cada cuanto en la serie se producen los datos) 
+print(datos)
+
+```
