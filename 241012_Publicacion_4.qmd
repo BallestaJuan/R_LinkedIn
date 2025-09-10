@@ -1,0 +1,348 @@
+---
+title: "241012_R-Básico_4"
+lang: es
+format: 
+     docx: 
+          fig-width: 6
+          fig-height: 4
+          css: styles.css
+          geometry: "a4paper"
+          author: "J.Ballesta"
+          date-format: "DD/MM/YY"
+          date: "10/20/24"
+          abstract: "
+          En esta publicación seguiremos con las posibilidades de gráficos con ggplot2 y el uso en su forma más sencilla de la regresión lineal tanto simple como polinómica.
+          
+          In this post, we will continue exploring the possibilities of graphs with ggplot2 and the use of simple and polynomial linear regression in its most basic form.
+          
+          In diesem Beitrag werden wir die Möglichkeiten von Diagrammen mit ggplot2 sowie die Anwendung der einfachen und polynomialen linearen Regression in ihrer einfachsten Form fortsetzen. "
+bibliography: references.bib
+---
+
+# Introducción.
+
+En esta publicación presentaremos resumidamente las alternativas de regresión lineal que nos ofrece R, tanto en el caso de dos variables como varias variables.
+
+## Packages.
+
+En primer lugar, cargamos las librerías que vamos a necesitar en esta sesión:
+
+```{r message=FALSE}
+#
+#    cargo las librerías necesarias para esta publicación
+library (magrittr)       # para poder usar el operador pipeline %>%
+library (ggplot2)        # presentación de gráficos
+theme_set(theme_bw())    # fijo por defecto el tema de los gráficos en blanco y negro
+library(scales)          # ajustes de formatos en los ejes de los gráficos
+library (GGally)         # gráficos de Trellis para la regresión polinómica
+library(DataExplorer)    # análisis exploratorio de datos EDA
+#
+```
+
+## Conjuntos de datos (*datasets*) para este estudio.
+
+### Regresión lineal simple.
+
+En este caso estudiamos la relación entre dos variables, elegimos para esta publicación el dataset *cars*, que contiene las siguientes variables :
+
+-   *\$speed* : velocidad medida en millas por hora
+
+-   *\$dist* : distancia de frenado
+
+```{r , fig.width= 6, fig.height=4}
+#
+#    los datos para el estudio de la regresión lineal simple los obtenemos del dataset cars, 
+# que muestra la distancia de frenado y velocidad (en la década de 1.920)
+datos_rls <- cars
+# descripción de las variables en el dataset    
+plot_intro (datos_rls,
+            title = "Variables del dataset cars",
+            ggtheme = theme_bw())
+# distribución de densidad de $speed y $dist 
+plot_density(datos_rls,
+             title = "Densidad de distribución",
+             ggtheme = theme_bw())
+# que estructura tienen nuestros datos, que tipo de datos cada variable 
+str(datos_rls)
+# y comprobamos las primeras y últimas filas por si hay algún dato que nos llame la atención
+head(datos_rls, 5)
+#
+tail(datos_rls, 5)
+
+```
+
+### Regresión lineal polinómica.
+
+En este caso estudiamos la relación entre una variable independientes y varias variables dependientes de alguna forma relacionadas con la anterior, elegimos para esta publicación el dataset *txhousing* (disponible en el package *ggplot2* ([@ggplot2]), que contiene las siguientes variables :
+
+-   *\$city* : nombre del área MLS (Multiple Listing Service)
+
+-   *\$year, \$month, \$date* : fecha
+
+-   *\$sales* : número de ventas
+
+-   *\$volume* : valor total de las ventas
+
+-   *\$median*: precio de venta mediano
+
+-   *\$listings* : listados totales activos
+
+-   *\$inventory* : Meses en stock tiempo que llevaría vender todas las casas disponibles al ritmo actual de ventas
+
+```{r, fig.width= 6, fig.height=4}
+#
+#    los datos para la regresión lineal polinómica los obtendremos del dataset txhousing 
+#(disponible en el package ggplot2), que contiene 9 variables del mercado de la vivienda en #Tejas.
+datos_rlp <-txhousing
+#
+# descripción de las variables en el dataset    
+plot_intro (datos_rlp,
+            title = "Variables del dataset txhousing",
+            ggtheme = theme_bw())
+# distribución de densidad de de las variables que contiene el dataset, limito el rango de #columnas con información relevante (no necesito saber la densidad, del año, la fecha ...) 
+plot_density(datos_rlp[, 4:8],
+             title = "Desidad de distribución",
+             ggtheme = theme_bw())
+# que estructura tienen nuestros datos, que tipo de datos cada variable 
+str(datos_rlp)
+# y comprobamos las primeras y últimas filas por si hay algún dato que nos llame la atención
+head(datos_rlp, 5)
+#
+tail(datos_rlp, 5)
+
+```
+
+Como podemos ver en el gráfico obtenido con *plot_intro()*, tenemos un 6% de observaciones faltantes (en algunos textos figuran como N/A), en circunstancias reales deberíamos investigar el motivo de estas observaciones perdidas y tomar una decisión al respecto. Dado que el propósito es mostrar la metodología y desconocemos cómo se obtuvo el dataset txhousing, en este caso no prestaremos atención a estas variables faltantes.
+
+# Regresión lineal simple.
+
+Este es el caso más sencillo de regresión lineal donde investigamos la relación entre dos variables con una ecuación del tipo :
+
+$$
+y = ax + m + \epsilon
+$$
+
+en esta ecuación, como ya conocemos :
+
+-   y es la variable independiente, en nuestro caso la distancia de frenado.
+
+-   x es la variable dependiente, en nuestro caso la velocidad del vehículo.
+
+-   a es la pendiente de la recta o también la variación de y por unidad de x.
+
+-   m es el punto de intersección con el eje de abcisas.
+
+-   $\epsilon$ es una variable independiente de media 0 y distribución tipo normal.
+
+Como hemos visto anteriormente, mediante *ggplot2* ([@ggplot2]) podemos obtener gráficamente la solución a encontrar la relación lineal entre dos variables mediante la capa *geom_smooth()*, veamos como:
+
+```{r warning=FALSE, fig.width= 6, fig.height=4}
+#| label: fig-Rel_Dist_Vel
+#| fig-cap: "Relación distancia de frenado y velocidad."
+#
+#    Presentamos el gráfico que relaciona ambas variables $speed y $dist, superponiendo la #recta entre ambas variables que calcula ggplot2
+ggplot(data=datos_rls, aes(x=speed, y=dist))+
+     geom_point(alpha=0.5)+   # alpha es el valor de transparencia en este caso de los puntos
+     geom_smooth(method = lm, aes(color="Reg.Lin."))+
+     scale_color_manual(values = c("Reg.Lin."="blue"))+
+     labs(title = "Distancia de frenado vs. velocidad",
+          subtitle = "Dataset: cars", 
+          caption = "Medida años 1.920")+
+     xlab("Velocidad (mph)")+
+     ylab("Distancia de frenado (ft)")
+
+```
+
+En el gráfico @fig-Rel_Dist_Vel vemos gráficamente representados los valores de ambas variables del dataframe *datos_rls*, y una recta en color azul que *ggplot2* ([@ggplot2-2]) calcula para relacionar ambas variables. La banda gris que rodea a la recta en azul es el error standard, que como ponemos ver por su anchura es mayor en los extremos que en el centro.
+
+Gráficamente vemos que podemos obtener una recta que nos relacione ambas variables, que en el tramo central funcionará con un bajo error standard, y en los extremos el error será mayor porque los valores están bastante más alejados y no es posible capturarlos con una recta.
+
+Como seguridad adicional, vamos a ver en gráfico de cajas (con la capa *geom_boxplot()*) ambas variables para ver si hay algún valor atípico (en ingles outlier)
+
+```{r}
+#
+#    para mostrar los datos en el gráfico de caja vamos a añadir dos variables categoricas #distancia y velocidad
+cat_distancia <- rep ("Distancia", nrow(datos_rls))
+cat_velocidad <- rep ("Velocidad", nrow(datos_rls))
+# componemos dos dataframes con la categoria  de cada valor y los valores por categoria
+df_distancia <- data.frame(categoria=cat_distancia, valor=datos_rls$dist)
+df_velocidad <- data.frame(categoria=cat_velocidad, valor=datos_rls$speed)
+# y los unimos a nivel fila con la función rbind() en un único dataframe que pasaremos al 
+# gráfico
+datos_boxplot <- rbind(df_distancia, df_velocidad)
+
+```
+
+```{r, fig.width= 6, fig.height=4}
+#| label: fig-Box_Dist_Vel
+#| fig-cap: "Distr. de los valores de distancia de frenado y velocidad."
+#
+# pasamos los datos a geom_boxplot() usando un operador pipeline %>%
+datos_boxplot %>%
+     ggplot()+
+     geom_boxplot(aes(x=categoria, y=valor),
+                  outliers = TRUE, outlier.color = "red", outlier.shape = 5)+
+     labs(title = "Boxplot de las variables $speed y $dist",
+          subtitle = "Dataset:cars",
+          caption="Medida años 1.920")+
+     xlab("Variables")+
+     ylab("Valor")
+
+```
+
+del gráfico @fig-Box_Dist_Vel en color rojo vemos identificado un valor atípico, para nuestra publicación no haremos nada con este valor atípico, en la vida real los valores outliers deben analizarse y tomarse decisiones sobre que hacer con ellos (forman parte del proceso habitual y deben seguir, es un error en la medida y debe repetirse, ...). Es llamativo como en muchas ocasiones en la vida real, este tipo de valores simplemente no se analizan o no se les presta la atención debida.
+
+En R ([@base]) disponemos de la función *lm()*, para el cálculo de una regresión lineal, veamos a continuación como :
+
+```{r}
+#
+#    mediante la función lm(), hacemos una recta donde $dist es función lineal de $speed, del #dataframe datos_rls
+modelo_rls <- lm (dist ~ speed, data=datos_rls)
+# vemos con la función summary() los valores del modelo que obtenemos de aplicar lm()
+summary(modelo_rls)
+
+```
+
+Del resumen obtenido con la función *summary()* tenemos las siguientes secciones:
+
+-   Call : muestra como se ha sido la llamada de la función *lm()*
+
+-   Residuals: los errores del modelo, si los valores de error fueran adecuados tal como hemos definido teóricamente la mediana ( en una distribución normal es igual a la media) debería ser cero, en este caso vemos que no es así.
+
+-   coeficientes: los coeficientes de nuestra recta, junto con su p-value
+
+-   la ultima sección son las medidas de ajuste del modelo obtenido
+
+R ([@base]) nos permite obtener del modelo información adicional que muestra el grado de ajuste que hemos logrado.
+
+```{r}
+#    R nos permite obtener ciertas partes del modelo que hemos creado
+# los coeficientes de la recta
+coef_rls <- coefficients(modelo_rls)
+coef_rls
+# los valores de la variable independiente que calcula el modelo
+head(fitted(modelo_rls), 5)
+# los valores residuos, la diferencia entre la variable independiente real y la calculada
+head(resid(modelo_rls), 5)
+
+```
+
+Si hacemos un histograma de los residuos, vemos que la mayor parte de ellos tienen el valor 0 (el modelo predice la variable real)
+
+```{r, fig.width= 6, fig.height=4}
+#
+#    paso a un data frame los datos de los residuos 
+residuos <- as.data.frame(resid(modelo_rls))
+#    a traves del operador %>% paso los datos a un geom_histogram de ggplot
+residuos %>% 
+     ggplot()+
+     geom_histogram(aes(x=resid(modelo_rls)), bins= round(sqrt(nrow(residuos)),0))+
+     labs(title = "Histrograma valor de residuos de la función lm()",
+          subtitle= "Dataset: cars")+
+     xlab("Residuos lm()")+
+     ylab("Cuenta/Número")
+     
+```
+
+Vamos a ver gráficamente el resultado del modelo aprovechando las capacidades de *ggplot2* ([@ggplot2-3]) , superponiéndolo con *geom_abline()* sobre @fig-Rel_Dist_Vel:
+
+```{r warning=FALSE, fig.width= 6, fig.height=4}
+#
+# sobre el gráfico anterior añadimos una capa adicional mostrando la recta del modelo calculado #con lm()
+datos_rls %>%
+     ggplot(aes(x=speed, y=dist))+
+          geom_point(alpha=0.5)+   # alpha es el valor de transparencia en este caso de los puntos
+          geom_smooth(method = lm, aes(color="Reg.Lin."))+
+          geom_abline(aes(intercept = coef_rls[1], slope=coef_rls[2], color="lm()"))+
+          scale_color_manual(values = c("Reg.Lin."="blue", "lm()"="red"))+
+          labs(title = "Distancia de frenado vs. velocidad",
+               subtitle = "Dataset: cars", 
+               caption = "Medida años 1.920")+
+          xlab("Velocidad (mph)")+
+          ylab("Distancia de frenado (ft)")
+```
+
+# Regresión lineal polinómica.
+
+En este caso, como hemos indicado anteriormente usaremos el data set *txhousing*, que nos da varias variables del mercado inmobiliario de Texas. Vamos a trabajar para relacionar más de dos variables, aprovecharemos para presentar algunas funciones del package ggally ([@GGally]).
+
+```{r, warning=FALSE, message=FALSE, fig.width= 6, fig.height=4}
+#| label: fig-DataSet_Tx
+#| fig-cap: "Relación entre variables del dataset txhousing"
+#
+#    en este tipo de casos que trabajamos con muchas variables, recurrimos a la función  
+# ggpairs() del package ggally, para ver gráficamente algunas relaciones entre variables.
+ggpairs(datos_rlp[, 4:8])
+
+```
+
+Del gráfico, podemos ver que el número de ventas (*\$sales*) correla en distinto grado (recordemos que el coeficiente de correlación como máximo es abs(r)=1) con el valor total de las ventas (*\$volume*) , con el precio mediano de venta (*\$median*) y con el stock activo de viviendas (*\$listings*), vamos a ver como hacer un modelo lineal entre estas cuatro variables.
+
+```{r}
+#
+#    almacenamos en una variable el resultado de la función lm() donde mediante el operador #tilde (~) definimos la relación que queremos modelar  
+modelo_rlp <- lm(sales ~ volume+median+listings, data=datos_rlp)
+# obtenemos la información del modelo con summary()
+summary (modelo_rlp)
+
+```
+
+como vemos, tenemos las mismas secciones que en el modelo con dos variables.
+
+-   Call : muestra como se ha sido la llamada de la función *lm()*
+
+-   Residuals: los errores del modelo, los valores de error fueran adecuados tal como hemos definido teóricamente la mediana ( en una distribución normal es igual a la media) debería ser cero, en este caso vemos que no es así.
+
+-   Coeficientes: los coeficientes de nuestra recta, junto con su p-value
+
+-   la ultima sección son las medidas de ajuste del modelo obtenido. Aquí merece la pena destacar el elevado valor de R-squared que mide el porcentaje de variación de *\$sales*, que nuestro modelo es capaz de detectar, con un 98% estamos hablando de un modelo bastante ajustado.
+
+Tal y como hicimos con el caso de regresión lineal simple, R ([@base-2]) nos proporciona información adicional sobre el modelo que hemos calculado con la función *lm()*
+
+```{r}
+# R nos permite obtener ciertas partes del modelo que hemos creado
+# los coeficientes de la recta
+coef_rlp <- coefficients(modelo_rlp)
+coef_rlp
+# los valores de la variable independiente que calcula el modelo (lo limitamos a 5, el data set tiene 8.602 observaciones )
+print ("Valor variable indep. calculada")
+head(fitted(modelo_rlp), 5)
+tail(fitted(modelo_rlp), 5)
+# los valores residuos, la diferencia entre la variable independiente real y la calculada
+print ("Valor residuos calculados")
+head(resid(modelo_rlp), 5)
+tail(resid(modelo_rlp), 5)
+
+```
+
+Hacemos como el caso anterior y vemos mediante un histograma como se distribuye el valor de los residuos de la ecuación calculada :
+
+```{r, fig.width= 6, fig.height=4}
+#
+#    paso a un data frame los datos de los residuos 
+residuos <- as.data.frame(resid(modelo_rlp))
+#    a traves del operador %>% paso los datos a un geom_histogram de ggplot
+residuos %>% 
+     ggplot()+
+          geom_histogram( aes(x=resid(modelo_rlp)), 
+                          bins= round(sqrt(nrow(residuos)),0))+
+     labs(title = "Histrograma valor de residuos de la función lm()",
+          subtitle= "Dataset: txhousing")+
+     xlab("Residuos lm()")+
+     ylab("Cuenta/Número")
+
+```
+
+Vemos que el modelo, tal y como esperábamos del valor R-squared obtenido, obtiene en el cero la mayoría del valor de residuos.
+
+# Algunos puntos adicionales...
+
+-   La regresión lineal asume que la variable independiente es el resultado de una combinación lineal de las variables dependientes. Esta asunción funciona cuando es "casi" verdad, pero en algunas ocasiones puede funcionar bien sin serlo.
+
+-   Si se quieren usar los coeficientes de la ecuación obtenidos para hacer una extrapolación, deben ser estadísticamente significativos.
+
+-   Dependiendo de la aplicación este tipo de modelos deben usarse con cuidado en el caso de planear con ellos un a extrapolación. Aún en el caso de que en el rango de valores donde hemos calculado el modelo el ajuste sea bueno, eso no asegura que siga siendo bueno más allá de ese rango de valores.
+
+-   Valores muy grandes de coeficientes o de p-value, pueden ser indicativos de autocorrelación entre variables dependientes.
+
+-   Hemos usado en esta publicación la forma más simple de realizar la regresión lineal, normalmente el conjunto de datos disponible hay que dividirlo en un conjunto de entrenamiento, y otro de validación, entrenar el modelo, ....
