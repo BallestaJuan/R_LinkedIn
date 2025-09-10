@@ -1,0 +1,272 @@
+---
+title: "R_Básico_3"
+lang: es
+format: 
+     docx:
+          fig-width: 6
+          fig-height: 4
+          geometry: "a4paper"
+          author: "J.Ballesta"
+          date-format: "DD/MM/YY"
+          date: "10/17/24"
+          abstract: "Resumen
+          
+          En esta publicación continuaremos explorando las posibilidades de ggplot2, el package DataExplorer para el análisis exploratorio de datos y la comprobación del supuesto de normalidad de un conjunto de datos.
+          
+          In this post, we will continue exploring the possibilities of ggplot2, the DataExplorer package for exploratory data analysis, and testing the assumption of normality for a dataset.
+          
+          In diesem Beitrag werden wir die Möglichkeiten von ggplot2, dem DataExplorer-Paket für die explorative Datenanalyse, sowie die Überprüfung der Annahme der Normalverteilung eines Datensatzes weiter untersuchen."
+bibliography: references.bib
+---
+
+## Introducción
+
+Seguimos trabajando con R[@base], Quarto[@allaire2022] y RStudio[@RStudio] y conociendo las posibilidades de análisis de datos que nos ofrecen. En esta publicación añadiremos alguna visualización adicional con *ggplot2*[@ggplot2] y presentaremos el package *DataExplorer*[@DataExplorer] para análisis exploratorio de datos (en inglés EDA) y *patchwork*[@patchwork] para la composición de gráficos de *ggplot2*[@ggplot2-2].
+
+```{r error=FALSE}
+#
+#    Normalmente en el bloque inicial es conveniente declarar las librerias/packages que vamos a usar, en este caso:
+library(ggplot2)    # Visualización de gráficos
+library(patchwork) # Composición de los gráficos de ggplot2
+library(scales)    # Formateo de los ejes de los gráficos en ggplot2
+library(DataExplorer) # Uno de los muchos packages disponibles para EDA
+library (moments)   # cálculo de la asimetria y curtosis de la distribución
+# si están en el bloque inicial siempre sabemos donde buscar la librería y en caso de que el 
+# script alcance muchas líneas de código no hay que recorrer todo el código buscando en que 
+# línea hemos cargado la librería-
+#
+#    Damos un valor de semilla para la reproducibilidad de los resultados obtenidos en este 
+# script.
+set.seed(123)
+
+```
+
+En esta publicación usaremos el conjunto de datos (*dataset*) disponible en R: Orange, contiene 35 registros y tres variables, que recogen el crecimiento de unos naranjos.
+
+```{r}
+#
+#    Asignamos el dataset a una variable de trabajo.
+datos <- Orange
+# comprobamos la estructura de la variable.
+str(datos)
+# comprobamos cabecera y fin de los datos cargados
+head(datos, 5)
+#
+tail(datos, 5)
+# hacemos un resumen de algunas magnitudes estadísticas de los datos
+summary(datos)
+#
+```
+
+Las variables en el *dataset*, muestran:
+
+-   *\$Tree* : un factor ordenado que indica el árbol en el cual se ha hecho la medida.
+
+-   *\$age* : un valor numérico que muestra la edad del árbol en días desde 31/12/1.968.
+
+-   *\$circumference* : un valor numérico de diámetro de la circunferencia del tronco en mm.
+
+# Análisis exploratorio de datos.
+
+R[@base-2] es un lenguaje de programación Open Source y dispone de una amplia gama de packages (aunque en el script se llamen mediante la función *library()*) desarrollados por la comunidad de usuarios, que facilitan la programación de análisis para los problemas más diversos. En esta ocasión, optamos por un *package* de R llamado *DataExplorer*[@DataExplorer-2], especializado para el análisis exploratorio de datos.
+
+La lista de *packages* disponibles en R a través de CRAN : [Link](https://cran.r-project.org/web/packages/available_packages_by_name.html)
+
+El análisis exploratorio de datos (EDA en inglés) es un estudio preliminar para conocer los datos de los cuales disponemos y que puntos o que hipótesis debemos comprobar.
+
+```{r}
+#
+#    En el bloque inicial del script ya hemos cargado la librería DataExplorer
+# en primer lugar vemos información básica de los datos, como numero de filas, columnas
+# /variables, columnas con valores discretos, columnas con valores continuos...
+introduce(datos)
+
+```
+
+```{r}
+#
+#    a los datos anteriores les podemos dar una salida gráfica mediante la función plot_intro()
+# DataExplorer usa la base de ggplot2 para algunas de sus salidas, podemos usar algunos de los parámetros de ggplot2.
+plot_intro (datos,
+            title= "Estructura del dataset: Orange",
+            ggtheme= theme_bw()
+            )
+
+```
+
+```{r}
+#
+#    también es posible hacer una visualización de la distribución de frecuencias de las 
+# variables numéricas
+plot_histogram (datos)
+# o de su distribución de densidad
+plot_density(datos,
+             title = "Distribución de densidad")
+
+```
+
+```{r}
+#
+#    podemos hacer una visualización por diagrama de cajas, respecto del tipo de árbol
+plot_boxplot(datos, by="Tree",
+             ggtheme= theme_bw())
+
+```
+
+## DataExplorer, fuentes de información.
+
+1.  [Cran : DataExplorer: Automate Data Exploration and Treatment](https://cran.r-project.org/web/packages/DataExplorer/index.html)
+
+2.  [Introduction to DataExplorer](https://cran.r-project.org/web/packages/DataExplorer/vignettes/dataexplorer-intro.html)
+
+# Análisis gráfico.
+
+Continuamos con las posibilidades que nos ofrece *ggplot2*[@ggplot2-3], de presentar gráficamente nuestros datos en análisis.
+
+```{r}
+#
+#     En esta ocasión haremos uso del package patchwork para componer los dos gráficos de 
+# densidad de distribución de datos$age y datos$circumference
+p1 <- ggplot(data=datos)+
+          geom_density(aes(x=age, color="Age"))+
+          scale_color_manual(values= c("Age"="green", "Circum."="lightblue"))+
+          xlab("Edad (días)")+
+          ylab("Densidad de distribución")+
+          labs(caption = "Días desde 31/12/1.968")+
+          theme_bw()
+#
+p2 <- ggplot(data=datos)+
+          geom_density(aes(x=circumference, color="Circum."))+
+          scale_color_manual(values= c("Age"="green", "Circum."="lightblue"))+
+          xlab("Diam. de Circunf. (mm)")+
+          ylab("")+
+          theme_bw()
+# componemos los gráficos almacenados en la variables p1 y p2 uno al lado del otro
+p1+p2
+
+```
+
+```{r}
+#
+# para mostrar los gráficos apilados, cambiamos el operador.
+p1/p2
+
+```
+
+Para el caso de la edad y diámetro de circunferencia del tronco en función del tipo de árboles, podemos optar por *geom_boxplot()* de ggplot2[@ggplot2-3].
+
+```{r}
+#
+#    representamos edad y diámetro de circunferencia en funcio del tipo de árbol (datos$Tree)
+# de nuestro estudio. 
+ggplot(data=datos)+
+     geom_boxplot (aes(y=age, x=Tree), 
+                   outlier.color="red",
+                   outlier.shape = 1)+
+     labs( title = "Distribución de edad (días) por tipo de árbol",
+           caption= " días desde 31/12/1.968")+
+     xlab("Tipo de árbol")+
+     ylab("Edad (días)")+
+     theme_bw()
+#
+ggplot(data=datos)+
+     geom_boxplot (aes(y=circumference, x=Tree), 
+                   outlier.color="red",
+                   outlier.shape = 1)+
+     labs( title = "Distr. de diám. circunf. del tronco (mm) por tipo de árbol",
+           caption= "")+
+     xlab("Tipo de árbol")+
+     ylab("Diámetro de circunferencia (mm)")+
+     theme_bw()
+
+```
+
+En el siguiente gráfico vemos mediante la variable *\$Tree* (factor de 5 niveles) que codifica el tipo de árbol, cómo los arboles tipo 4, a partir de una determinada edad superan en diámetro de tronco al resto de tipo de árboles.
+
+```{r}
+#
+#    gráficamente como evoluciona con la edad el diametro de circunferencia del tronco
+ggplot(data=datos)+
+     geom_line(aes(x=age, y=circumference, color=Tree))+
+     labs(title= "Evol. de diam. de circunf. de tronco respecto edad",
+          subtitle= "Dataset: Orange")+
+     xlab("Edad (días)")+
+     ylab ("Diam. Circunferencia tronco (mm)")+
+     theme_bw()
+
+```
+
+# Comprobación de distribución Normal.
+
+En algunos casos nos interesa conocer si nuestros datos siguen una distribución tipo Normal, comprobar si los valores que obtenemos están agrupados entorno a un valor central, llamado media. Si la distribución es Normal, los valores de la media y la mediana coinciden.
+
+A efectos de demostración, consideraremos nuestros datos como un único grupo y comprobaremos si los datos de la medida del diámetro del tronco (*datos\$circumference*) siguen una distribución normal
+
+```{r}
+#| label: fig-QQ_Plot_datos
+#| fig-cap: "Diagrama QQ-Plot"
+#
+#    para la comprobación de la normalidad podemos optar por una visualización como el gráfico 
+# qqplot, donde se compara la distribución de los datos respecto a una linea teórica que 
+# deberían seguir si siguieran una distribución normal.
+ggplot (data.frame(sample= datos$circumference), aes(sample=sample))+
+     stat_qq(aes(color="Diam."))+
+     stat_qq_line(linetype="dashed")+
+     labs(title="QQ-Plot para verificar la nomalidad de Diam. Circumf.",
+          subtitle="Dataset: Orange")+
+     xlab ("Cuantiles teóricos")+
+     ylab("Cuantiles de la muestra")+
+     scale_color_manual(values=c("Diam."="blue"))+
+     theme_bw()
+
+```
+
+En @fig-QQ_Plot_datos gráficamente vemos que, sobre todo en los extremos de la distribución los datos se alejan de una distribución tipo normal, representada por la linea diagonal discontinua.
+
+R standard ofrece la función *qqnorm()*:
+
+```{r}
+#
+# que districución presenta la variable:
+qqnorm (datos$circumference, 
+        main= "QQ-Plot para verificar la nomalidad de Diam. Circumf.",
+        xlab= "Cuantiles teóricos",
+        ylab="Cuantiles de la muestra")
+# como sería si la distribución de la variable fuera tipo Normal
+qqline(datos$circumference)
+
+```
+
+R nos ofrece varios test de normalidad para comprobar la condición de distribución normal numéricamente:
+
+```{r}
+#
+#    Test de Shapiro-Wilk
+# ideal para muestras pequeñas (n<50)
+# H0 = los datos vienen de una distribución normal
+# si p-value es mayor que el nivel del significancia (usualmente 0,05), no se rechaza la 
+# hipotesis nula, lo que sugiere que los datos deben venir de una distribución normal
+shapiro.test(datos$circumference)
+#    Test de Kolmogorov-Smirnov
+# ideal para muestras grandes y pequeñas
+# H0 = los datos no difieren significativamente de una distribución normal
+# aceptación : Similar al test de Shapiro-Wilk
+ks.test(datos$circumference, "pnorm")
+# ...
+```
+
+La mayor dificultad con estos test numéricos es que parten del supuesto de normalidad de los datos. Como resultado, los datos deben seguir claramente otra distribución antes de que el bajo valor de *p-value* obtenido en el test de normalidad te haga rechazar la hipótesis nula. Esto hace que los test de normalidad sean muy conservadores, tendiendo al error en el aspecto de la normalidad de la distribución.
+
+En relación a los valores de asimetría (en inglés skewness) y curtosis de la distribución podemos valorar la diferencia respecto a una distribución normal (en la cual los valores son skewness=0 y curtosis=3 )
+
+```{r}
+#
+#    cálculo de la curtosis  y la asimetría del paquete momments, redondeado a tres decimales.
+asimetria <- round(skewness(datos$circumference), 3)
+curtosis <- round(kurtosis(datos$circumference), 3)
+#
+print(paste("Asimetría:", asimetria))
+print(paste("Curtosis:", curtosis))
+```
+
+Normalmente, recurriremos a una combinación de métodos gráficos y numéricos para valorar la condición de normalidad de la distribución que tenemos en estudio.
