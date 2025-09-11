@@ -1,0 +1,221 @@
+---
+title: "241024_R_Básico_5"
+lang: es
+format: 
+     docx: 
+          fig-width: 6
+          fig-height: 4
+          css: styles.css
+          geometry: "a4paper"
+          author: "J.Ballesta"
+          date-format: "DD/MM/YY"
+          date: "10/29/24"
+          abstract: " En esta última publicación veremos de forma resumida las alternativas que ofrece R para hacer regresión polinomica y el package ggfortify para los graficos de análisis de los resultados de la regresión.
+          
+          In this last publication, we will briefly review the alternatives that R offers for polynomial regression and the ggfortify package for visualizing the results of the regression analysis.
+          In dieser letzten Veröffentlichung werden wir kurz die Alternativen betrachten, die R für die polynomiale Regression bietet, sowie das Paket ggfortify zur Visualisierung der Ergebnisse der Regressionsanalyse."
+bibliography: references.bib
+---
+
+# Introducción
+
+En la publicación anterior hemos visto de forma básica la regresión lineal mediante la función de *lm()* en dos casos :
+
+-   Regresión lineal simple: buscamos la relación entre dos variables con una ecuación de primer grado del tipo $y=ax+m+\epsilon$.
+-   Regresión lineal polinómica: buscamos la relación entre varias variables dependientes y una variable dependiente con una ecuación del tipo : $y=Coef_{1}*Var_{1}+Coef_{2}*Var_{2}+...+Coef_{n}*Var_{n}+ \epsilon$
+
+R ( [@base]) mediante la función *summary()*, para cada tipo de regresión nos daba entre otros los resultados de :
+
+-   $a$ : pendiente de la recta, variación de $y$ por unidad de variación de $x$.
+
+-   $m$ : intersección de la recta con el eje de ordenadas.
+
+-   $Coef_1, ...., Coef_n$ los distintos coeficientes para componer nuestra ecuación.
+
+En determinados casos esta opción puede ser aceptable y dar el resultado que necesitamos, en otros casos debemos buscar la relación en forma de una ecuación de grado mayor que 1 o una alternativa en base de un spline.
+
+En esta publicación veremos de forma resumida cómo empezar el estudio de este tipo de ecuaciones.
+
+## Librerías.
+
+Como siempre, en primer lugar cargamos las librería necesarias que vamos a utilizar:
+
+```{r, message=FALSE}
+#
+#
+library(magrittr)   # para el uso del operador pipeline %>%
+library(ggplot2)    # package de gráficos
+theme_set(theme_bw()+
+               theme(legend.position="bottom")) # por defecto los gráficos en B/N y leyenda en la parte inferior del gráfico
+library(scales)     # ajustes en las escala de los gráficos
+library (patchwork) # composición de los gráficos de  ggplot2
+library(ggfortify)     # para gráficos del resultado del modelo con lm()
+library(DataExplorer) # para análisis exploratorio de datos
+library(splines)    # para el uso de la solución mediante splines
+
+```
+
+## Conjuntos de datos.
+
+## Regresión polinómica y splines.
+
+En ambos casos, haremos el estudio con el dataset *pressure* que contiene dos variables
+
+-   *\$temperature* : la temperatura en grados celsius (ºC)
+
+-   *\$presure* : la presión del vapor de mercurio en milímetros (de mercurio) (mm)
+
+```{r}
+#
+#    pasamos los datos del dataset a una variable de trabajo
+datos_rp <- pressure
+# mostramos el estado de los los datos 
+plot_intro(datos_rp,
+           title = "Dataset pressure",
+           ggtheme = theme_bw())
+# su estructura
+str(datos_rp)
+# un resumen de algunas magnitudes estadísticas
+summary(datos_rp)
+# mostramos los datos iniciales y finales
+head(datos_rp, 5)
+tail(datos_rp, 5)
+
+```
+
+# Regresión polinómica dos variables.
+
+En primer lugar, presentamos de forma gráfica los datos disponibles en la variable de trabajo:
+
+```{r}
+#| label: fig-dataset_pressure
+#| fig-cap: "Relación presión y temperatura."
+#
+#    mediante el operador %>% pasamos los datos a ggplot
+datos_rp%>%
+     ggplot(aes(x=pressure, y=temperature))+
+     geom_point(alpha=0.5)+
+     labs (title = "Relación temperatura vs. presión de mercurio",
+           subtitle = "Dataset: pressure")+
+     xlab("Pressure Hg (mm)")+
+     ylab("Temperature (ºC)")
+
+```
+
+Aprovechando la capa *geom_smooth()* vamos a trazar varias curvas con polinomios de distintos grados para ver cual podría ajustarse mejor a nuestros datos en *pressure.*
+
+```{r message=FALSE}
+#| label: fig-Ajuste_poly
+#| fig-cap: "Ajuste polinomios diversos grados a dataset pressure."
+#
+#    pasamos los datos a ggplot y presentamos los gráficos
+datos_rp%>%
+     ggplot(aes(x=pressure, y=temperature))+
+     geom_point(alpha=0.5)+
+     geom_smooth(method = "lm", se=FALSE, aes(color="Reg.Lin"))+
+     geom_smooth(method="lm", formula = "y~poly(x,2)", se=FALSE, aes(color="grad2"))+
+     geom_smooth(method="lm", formula = "y~poly(x,3)", se=FALSE, aes(color="grad3"))+
+     geom_smooth(method="lm", formula = "y~poly(x,4)", se=FALSE, aes(color="grad4"))+
+     geom_smooth(method="lm", formula = "y~poly(x,5)", se=FALSE, aes(color="grad5"))+
+     scale_color_manual(values=c("Reg.Lin"="blue", 
+                                 "grad2"="red", "grad3"="green",
+                                 "grad4"="cyan", "grad5"="brown"))+
+     labs (title = "Relación temperatura vs. presión de mercurio",
+           subtitle = "Dataset: pressure")+
+     xlab("Pressure Hg (mm)")+
+     ylab("Temperature (ºC)")
+
+```
+
+Del gráfico @fig-Ajuste_poly, podemos ver que el "mejor ajuste" a los datos originales se obtiene con un polinomio grado 4. Ahora usamos la función *lm()* para determinar el modelo:
+
+```{r}
+#
+#    lanzamos con lm() el cálculo de la regresión con un polinomio grado 4
+modelo_rlp <- lm (data=datos_rp, formula = temperature ~ poly(pressure, 4))
+# vemos el resultado del calculo del modelo 
+summary (modelo_rlp)
+
+```
+
+Vemos que el resultado de Adjusted R-squared es elevado (\~0,80), recordemos que este valor es el porcentaje de varianza de la variable independiente que el modelo es capaz de detectar.
+
+Como en la publicación anterior podemos optar por hacer nosotros los gráficos para el diagnóstico de modelo, o bien mediante el package ggfortify ([@ggfortify]), usar la función *autoplot()*
+
+```{r}
+#
+#    lanzamos mediante la función autoplot, los gráficos del diagnóstico del modelo 
+# - gráfico de residuos vs. valores ajustados
+# - gráfico para evaluar la normalidad de los residuos
+# - escala ubicación para ver la hommogeneidad de la varianza
+# - residuos vs. leverage (distancia de cook) para identificar los puntos influyentes
+autoplot(modelo_rlp)
+
+```
+
+# Splines
+
+En casos como este podemos buscar un mejor ajuste mediante la función *bs()* del package *splines (*[@splines]*)*, que ajusta un spline sobre los datos disponibles. Los splines son funciones de interpolación que se usan para ajustar curvas a conjuntos de datos. A diferencia de la regresión polinómica, que utiliza un único polinomio para todo el rango de datos, los splines usan múltiples polinomios conectados en puntos llamados "nudos" (en inglés knot).
+
+Entre las ventajas de usar splines :
+
+-   flexibilidad: los splines permiten capturar cambios en la pendiente sin sobreajustar los datos.
+
+-   Control sobre la suavidad: puedes ajustar la suavidad de la curva al cambiar el número y la posición de los nudos
+
+Teniendo en cuenta el gráfico @fig-dataset_pressure , vamos a ajustar un modelo usando splines cúbicos.
+
+```{r}
+#
+#    ajustammos el modelo sobre la variable independiente y estimamos 3 nudos donde hacer el 
+# "cambio" de spline.
+modelo_spline <- lm(temperature ~ bs(pressure, knots=c(25, 100, 200)), data = datos_rp)
+# a continuación vemos un resumen de los datos del modelo
+summary(modelo_spline)
+
+```
+
+Vemos que en este caso hemos pasado de un Adjusted R-squared de 0,80 a 0,91, el modelo con spline captura mejor la varianza de *\$temperature*.
+
+Gráficamente obtenemos el modelo spline añadiendo al gráfico de los datos originales en *pressure*, la capa *geom_line()*
+
+```{r}
+#
+#     la función predict nos da los valores calculados en el modelo y para simplificar la #presentación con ggplot, los añadimos como columna al dataframe original.
+datos_rp$spline_predict <- predict(modelo_spline)
+#
+p1 <- datos_rp %>% 
+     ggplot(aes(x=pressure, y=temperature))+
+     geom_point(alpha=0.5)+
+     geom_line(aes(y=spline_predict, color="Spline"), linewidth=0.5)+
+     scale_color_manual(values = c("Spline"="red"))+
+     labs (title = "Temp. vs. pres. Hg + spline",
+           subtitle = "Dataset: pressure")+
+     xlab("Pressure Hg (mm)")+
+     ylab("Temperature (ºC)")
+
+# presentamos el gráfico en pantalla
+p1
+
+```
+
+y ambos modelos :
+
+```{r message=FALSE}
+#
+#    hacemos un gráfico con los datos originales y los polinomio grado1 y grado4
+p2 <- datos_rp%>%
+     ggplot(aes(x=pressure, y=temperature))+
+     geom_point(alpha=0.5)+
+     geom_smooth(method = "lm", se=FALSE, aes(color="Reg.Lin"))+
+     geom_smooth(method="lm", formula = "y~poly(x,4)", se=FALSE, aes(color="grad4"))+
+     scale_color_manual(values=c("Reg.Lin"="blue", "grad4"="cyan"))+
+     labs (title = "Temp. vs. pres. Hg + line +4º grad",
+           subtitle = "Dataset: pressure")+
+     xlab("Pressure Hg (mm)")+
+     ylab("Temperature (ºC)")
+# componemos mediante el package patchwork ambos gráficos uno al lado del otro.
+p1+p2
+```
+
+Hemos visto en esta publicación de forma muy resumida como ajustar un modelo de regresión polinomico o mediante splines a un conjunto de datos dados. La elección final de la solución a nuestro problema es necesario estudiarla caso por caso, y decidir en consecuencia.
