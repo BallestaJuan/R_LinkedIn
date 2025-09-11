@@ -1,0 +1,250 @@
+---
+title: "R_Básico_6"
+author: "J.Ballesta"
+lang: es
+format: 
+     docx:
+          fig-width: 6
+          fig-height: 4
+          css: styles.css
+          geometry: "a4paper"
+          author: "J.Ballesta"
+          date-format: "DD/MM/YY"
+          date: "12/06/25"
+          abstract: " En esta publicación veremos de forma práctica la presentación de series temporales en R y empezaremos a usar las librerias Tydyverse y Lubridate.
+          In diesem Beitrag werden wir die Darstellung von Zeitreihen in R auf praktische Weise betrachten und mit der Verwendung der Bibliotheken Tydiverse und Lubridate beginnen.
+          In this post, we will practically explore the presentation of time series in R and begin using the Tydiverse and Lubridate Libraries.
+          "
+bibliography: references.bib
+---
+
+# Introducción
+
+Retomamos esta serie de publicaciones, para seguir descubriendo aspectos eminentemente prácticos del uso del lenguaje de programación R[@base], el IDE de programación RStudio[@RStudio] y Quarto[@Quarto] para la generación de informes de resultados.
+
+En la mayoría de las ocasiones, las variables de nuestro interés evolucionarán de alguna forma en el tiempo, por ello es importante disponer de herramientas que nos permitan de forma efectiva presentar esta evolución en el tiempo y preparar los datos para su análisis. En esta publicación veremos que posibilidades nos brinda el package *ggplot2*[@ggplot2] para tratar datos en el tiempo, empezaremos a usar *tidyverse* [@tidyverse] y *lubridate*[@lubridate].
+
+Es esta publicación, haremos uso de los conjuntos de datos (en inglés: datasets) disponibles en la página web de la Universidad de Irvine ([Univ. Irvine Machine Learning Repository](https://archive.ics.uci.edu/about)), donde encontramos un extenso conjunto de datos para usar en nuestro aprendizaje de R. En concreto, usaremos "Power Consumption of Tetouan City" [@abdulwahedsalam2018]. Este conjunto de datos se refiere al consumo de electricidad de tres redes diferentes de la ciudad de Tetuan (Marruecos).
+
+Disponemos de las siguientes variables:
+
+-   *\$DateTime* : Fecha y hora de la recogida de datos
+
+-   *\$Temperature*: Temperatura en la ciudad
+
+-   *\$Humidity* : Humedad en la ciudad
+
+-   *\$Windspeed*: Velocidad del viento
+
+-   *\$General diffuse flows*
+
+-   *\$Diffuse flows*
+
+-   *\$Zone 1 Power consumption*
+
+-   *\$Zone 2 Power consumption*
+
+-   *\$Zone 3 Power consumption*
+
+# Librerías
+
+Como siempre, en primer lugar cargaremos las librerías necesarias para nuestra publicación:
+
+```{r}
+#
+#    cargamos el package tidyverse que incluye a ggplot2, dplyr, .... 
+library(tidyverse)
+#    para el manejo de fechas usaremos Lubridate 
+library(lubridate)
+#    para el análisis exploratorio de datos usamos DataExplorer
+library(DataExplorer)
+#
+#    para las salidas de ggplot2, fijamos el tema del gráfico en B/N y la leyenda en la parte #inferior de los gráficos
+theme_set(theme_bw()+
+               theme(legend.position="bottom"))
+
+```
+
+# Conjunto de datos
+
+Como hemos comentado en la introducción usaremos el conjunto de datos disponible en [Power Consumption of Tetouan City](https://archive.ics.uci.edu/dataset/849/power+consumption+of+tetouan+city), para ello descargamos los datos de la web y los cargamos en R, mediante la función *read.csv()* :
+
+```{r}
+#
+#    leemos los datos del fichero.csv y los almacenamos en una variable de trabajo 
+datos <- read.csv("Tetuan City power consumption.csv")
+
+```
+
+Comprobamos la subida de los datos y hacemos el análisis exploratorio inicial de los datos
+
+```{r}
+#
+#    cabecera y final de la tabla de datos
+head(datos, 5)
+tail(datos, 5)
+#    vemos la estructura de los datos
+print("Estructura de datos:")
+str(datos)
+#    vemos algunas magnitudes estadísticas de los datos, excepto la primera columna que es de #fecha y hora.
+summary(datos[,-1])
+
+```
+
+Hacemos el análisis exploratorio inicial para ver que estado de datos tenemos:
+
+```{r}
+#
+#    vemos los datos, para ver como están distribuidas las variables y si hay datos faltantes
+plot_intro(datos[,-1],
+           title = "Dataset Power_Consumption_Tetouan",
+           ggtheme = theme_bw())
+
+```
+
+De la salida de la función *str()*, vemos que el campo de fecha y hora (corresponde con la variable *\$Datetime* ) es una cadena de texto (tipo de datos chr), vamos a separar la columna *\$DateTime* en dos columnas y formatear la columna de fecha como tipo de datos Date
+
+```{r}
+#    para mantenerlo como referencia dejamos la variable original (datos) sin modificar y #pasamos a otra variable (df) y convertimos la columna de fecha y hora a dos columnas #separadas siguen siendo del tipo chr
+df <- datos %>%
+     separate(DateTime, 
+              into = c("fecha_original", "hora"), 
+              sep = " ")
+#    formateamos la columna separada, mediante la función mdy() como  un tipo de datos de fecha (Date)
+df$fecha_original <- mdy(df$fecha_original)
+#    añadimos algunas columnas adicionales que nos permitan hacer varios tipos de gráficos
+df <- df %>%
+     mutate(
+          dia = day(fecha_original),
+          semana = week(fecha_original),
+          num_mes = month(fecha_original),
+          nombre_mes = month(fecha_original, label=TRUE)
+          )
+#    comprobamos la salida de los datos y comprobamos efectivamente que el tipo de datos de #la fecha ha cambiado a tipo Date
+head (df, 5)
+tail(df, 5)
+#
+str(df)
+
+```
+
+Verificamos que el rango de fechas esté completo.
+
+```{r}
+#
+#    Verificar la completitud temporal
+fechas_completas <- seq(from = min(df$fecha), 
+                       to = max(df$fecha), 
+                       by = "day")
+fechas_faltantes <- setdiff(fechas_completas, unique(df$fecha))
+#
+if(length(fechas_faltantes) > 0) {
+     warning("Faltan datos para las fechas: ", paste(fechas_faltantes, collapse = ", "))
+} 
+
+```
+
+## Gráficas en función del tiempo.
+
+A continuación presentaremos los datos en función del tiempo, para ello una de las primeras gráficas puede ser un *geom_boxplot()* de la *\$Temperature* en función de los meses :
+
+```{r}
+#
+#    Pasamos los datos a ggplot2 y podemos ver que en los meses de marzo a octubre hay muchos #valores atípicos (outliers) por alta temperatura.
+df %>% 
+     ggplot()+
+     geom_boxplot(aes(x=nombre_mes, y= Temperature, color=nombre_mes), alpha=0.2)+
+     labs(title = "Temperatura diaria (ºC) por mes")+
+     xlab("Mes")+
+     ylab("Temperatura (ºC)")+
+     theme(legend.position = "right")
+
+```
+
+Los datos están compuestos por por varias mediciones en el día, para simplificar la presentación optamos por usar la función *median()* y obtener el valor que centra la distribución de la medida:
+
+```{r message=FALSE}
+#
+#    los datos están compuestos de varios registros en el mismo día, presentamos la #temperatura mediana por día y separada por meses(facet_wrap)
+df %>%
+     group_by(nombre_mes, dia)%>%
+     summarise(temp_mediana=median(Temperature)) %>% 
+      ggplot()+
+      geom_line(aes(x=dia, y=temp_mediana))+
+      labs(title="Temperatura (ºC) diaria por mes",
+           caption = "dataset:Power consumption Tetouan")+
+      xlab("Núm. día mes")+
+      ylab("Temperatura (ºC)")+
+      scale_x_continuous(limits=c(1,31), breaks=seq(1,31, by=7))+
+      facet_wrap(~nombre_mes, scales="free_y") #mediante el parámetro scales dejamos que ggplot2 ajuste la escala en el eje Y
+ 
+```
+
+También podemos optar por presentar la evolución global de la temperatura mediana semanal en el año distinguiendo cada mes, para ello:
+
+```{r message=FALSE}
+#
+#    en este caso presentaremos la temperatura mediana en el año, distinguiendo por meses
+df %>%
+     group_by(nombre_mes, semana)%>%
+     summarise(temp_mediana=median(Temperature)) %>%
+     ggplot()+
+     geom_line(aes(x=semana, y=temp_mediana, color=nombre_mes))+
+     geom_point(aes(x=semana, y=temp_mediana, color=nombre_mes))+
+     labs(title="Temperatura (ºC) mediana por semana por mes",
+           caption = "Dataset:Power consumption Tetouan")+
+     xlab("Núm. semana")+
+     ylab("Temperatura mediana medida (ºC)")+
+     scale_x_continuous(limits=c(1,52), breaks=seq(1,52, by=4))+
+     theme(legend.position = "right")
+
+```
+
+Podemos combinar en el mismo gráfico varias variables, en este caso optamos por combinar en un mismo gráfico *\$Temperature* y *\$Humidity*
+
+```{r message=FALSE}
+#
+#
+df %>%
+     group_by(nombre_mes, semana)%>%
+     summarise(temp_mediana=median(Temperature),
+               hum_mediana=median(Humidity)) %>% 
+     ggplot()+
+     geom_line(aes(x=semana, y=temp_mediana, color="Temp."))+
+     geom_line(aes(x=semana, y=hum_mediana, color="Hum."))+
+     scale_color_manual(values = c("Temp."="blue", "Hum."="green"))+
+     labs(title="Temperatura (ºC) y Humedad mediana semanal",
+           caption = "dataset:Power consumption Tetouan")+
+      xlab("Núm. semana")+
+      ylab("Temperatura mediana medida (ºC) y humedad")+
+     scale_x_continuous(limits=c(1,52), breaks=seq(1,52, by=4)) 
+
+```
+
+Para terminar podemos dotar el gráfico de alguna linea de referencia adicional como el valor mediano anual, tanto en *\$Temperature* como *\$Humidity*:
+
+```{r}
+df %>%
+     group_by(nombre_mes, semana)%>%
+     summarise(temp_mediana=median(Temperature),
+               hum_mediana=median(Humidity)) %>% 
+     ggplot()+
+     geom_line(aes(x=semana, y=temp_mediana, color="Temp."))+
+     geom_line(aes(x=semana, y=hum_mediana, color="Hum."))+
+     geom_hline(aes(yintercept=median(temp_mediana), color="Temp.Mediana"), 
+                linetype="dashed")+
+     geom_hline(aes(yintercept=median(hum_mediana), color="Hum.Mediana"), 
+                linetype="dashed")+
+     scale_color_manual(values = c("Temp."="blue", "Hum."="green",
+                                   "Temp.Mediana"="cyan","Hum.Mediana"="darkgreen"))+
+     labs(title="Temperatura (ºC) y Humedad mediana semanal",
+           caption = "dataset:Power consumption Tetouan")+
+     xlab("Núm.de semana")+
+     ylab("Temperatura (ºC) y humedad mediana medida")+
+     scale_x_continuous(limits=c(1,52), breaks=seq(1,52, by=4))
+
+```
+
+En esta publicación hemos visto como preparar de una forma bastante sencilla los datos para representar su evolución en el tiempo, con los packages *dplyr*[@dplyr], *lubridate*[@lubridate-2] y *ggplot2*[@ggplot2-2].
+
+Este tipo de preparación y presentación de datos en un software "standard", en el sentido de habitualmente disponible, como Excel requiere de un mayor esfuerzo, dado que habría que recurrir a soluciones como PowerQuery para las distintas tablas de agrupamiento de los datos por mes o semana (el tamaño del fichero resultante en estos casos crece mucho) y la salida gráfica en Excel está bastante más limitada. La posibilidad de recurrir a soluciones como el uso de VBA, sólo estarían disponibles para gente con mucha experiencia en programación en VBA y seguramente tomaría su tiempo finalizar este tipo de resumen de los datos.
