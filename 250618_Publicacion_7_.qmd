@@ -1,0 +1,221 @@
+---
+title: "R_Básico_7"
+author: "J.Ballesta"
+lang : es 
+format: 
+     docx:
+          fig-width: 6
+          fig-height: 4
+          css: styles.css
+          geometry: "a4paper"
+          author: "J.Ballesta"
+          date-format: "DD/MM/YY"
+          date: "18/06/25"
+          abstract: " En esta publicación presentamos una introducción al análisis de series temporales, y  el método Holt-Winters.
+          
+          In this publication, we present an introduction to time series analysis and introduce the Holt-Winters method.
+          
+          In dieser Veröffentlichung geben wir eine Einführung in die Zeitreiheanakyse un stellen die Holt-Winters methode vor.
+          
+          "
+bibliography: references.bib
+
+editor: visual
+---
+
+# Introducción.
+
+En esta publicación veremos un análisis sencillo sobre series temporales, usando el lenguaje de programación R[@base], el IDE RStudio[@RStudio] y Quarto [@Quarto] para formatear el fichero de resultados.
+
+Una serie temporal es una secuencia de valores medidos a intervalos de tiempo sucesivos y específicos. Estos valores pueden ser cualquier tipo de dato, desde valores económicos (evolución del precio de venta de un determinado articulo, precio de las acciones de una empresa, el PIB de un país...) hasta datos científicos ( temperatura media diaria, población de una especie, ...) La clave es el orden cronológico, ya que el tiempo es una dimensión fundamental que influye en el comportamiento de los datos.
+
+Sin extendernos mucho, las series temporales tienen cuatro componentes :
+
+1.  Tendencia $T_t$: Representa el movimiento a largo plazo de la serie. Puede ser ascendente, descendente o relativamente plana.
+2.  Estacionalidad $S_t$: Patrones que se repiten en intervalos fijos y conocidos (diariamente, semanalmente, ...).
+3.  Ciclo $C_t$: fluctuaciones que ocurren en periodos más largos que la estacionalidad y no son de duración fija. Suelen estar asociados a ciclos económicos o de negocio.
+4.  Ruido o residuo $\epsilon_t$: es la parte de la serie temporal que no puede ser explicada por la tendencia la estacionalidad o el ciclo
+
+Estos cuatro componentes se pueden evaluar en dos tipos de modelos :
+
+1.  Modelo aditivo $Y_t \, =\, T_t + S_t + C_t+\epsilon_t$ (cuando la magnitud de las fluctuaciones estacionales no cambia con el nivel de la serie).
+
+2.  Modelo multiplicativo $Y_t\,=\,T_t * S_t * C_t * \epsilon_t$ ( cuando la magnitud de las fluctuaciones estacionales aumenta o disminuye con el nivel de la serie).
+
+En esta publicación analizaremos un ejemplo sencillo de análisis de una serie univariante.
+
+# Librerías.
+
+Como siempre, en primer lugar cargamos las librerías que vamos a necesitar en esta publicación.
+
+```{r echo=FALSE}
+#
+#    cargo las librerías necesarias
+library(tidyverse)
+library(forecast)
+library(tseries)
+library(DataExplorer)
+#    para las salidas gráficas de ggplot2, fijamos el tema del gráfico en B/N y la leyenda en la parte #inferior de los gráficos
+theme_set(theme_bw()+
+               theme(legend.position="bottom"))
+
+```
+
+# Conjunto de datos.
+
+Analizaremos el conjunto de datos de Eurostat sobre generación de energía eléctrica en España desde el año 2.020 a finales del 2.024, disponible en el enlace (<https://ec.europa.eu/eurostat/databrowser/view/nrg_cb_em__custom_15997382/default/line?lang=en> ) [@eurostat2022], descargo los datos de la web de Eurostat y los subo a R con la función *readcsv()*
+
+```{r}
+#
+#    cargo datos del fichero descargado de la web de Eurostat
+datos <- read.csv("estat_nrg_cb_em_filtered_en.csv")
+#    como siempre presento la cabecera de los datos 
+head(datos, 5)
+#    obtengo información sobre su estructura y tipo de datos
+str(datos)
+
+```
+
+```{r}
+#| label: fig-Distr_Datos
+#| fig-cap: "Distribución de los datos"
+#
+#    Con DataExplorer comprobamos los datos, para ver como están distribuidas las variables y si # hay datos faltantes
+#    Preparación de los datos elijo las columnas que me interesan para la serie temporal, la #fecha y el valor
+datos_ts <- datos |>
+     select(TIME_PERIOD, OBS_VALUE)
+#
+plot_intro(datos_ts,
+           title = "Dataset Supply, tranformation and consumption of electricity",
+           ggtheme = theme_bw())
+
+```
+
+Vemos de @fig-Distr_Datos no tenemos datos faltantes, y que la información es completa.
+
+# Análisis de series temporales.
+
+El primer paso es convertir a una serie temporal el dataframe con los datos que hemos obtenido:
+
+```{r}
+#
+#    La cadena de texto yyyy-mm la convierto a formato fecha 
+datos_ts$TIME_PERIOD <- ym(datos_ts$TIME_PERIOD)
+#
+#    Hago una serie temporal  con la función ts(), como tengo 12 meses por año -> frequency=12
+datos_analisis <- ts(datos_ts$OBS_VALUE,
+                     start =c(as.numeric(format(datos_ts$TIME_PERIOD[1], "%Y")), as.numeric(format(datos_ts$TIME_PERIOD[1], "%m"))), 
+                     frequency = 12)
+
+```
+
+Representamos gráficamente la serie temporal:
+
+```{r}
+#
+#     representamos gráficamente los datos de la serie. En este caso usaremos la 
+#capa de scale_x_date() para formatear las fechas en el eje X, mostrando periodos de 1 año y 
+#trimestres
+ggplot(datos_ts, aes(x=TIME_PERIOD, y=OBS_VALUE) )+
+     geom_line(color = "skyblue", linewidth = 1) +
+     geom_point(color = "darkblue", size = 2) +
+     scale_x_date(date_breaks = "1 year",date_minor_breaks = "3 months" )+
+     labs(title = "Ejemplo de Serie Temporal: Evolución de la generación de electricidad",
+       x = "Año",
+       y = "Generación de electricidad (GWh)")
+     
+```
+
+Vemos que la serie es relativamente estable en el tiempo, con una bajada de valores muy acusada en el 2.020. Vamos a visualizar sus componentes, descomponiéndola mediante la función *decompose()* (hay otra función para la descomposición llamada *stl()*) :
+
+```{r}
+#
+#    con la función decompose() descomponemos la serie en sus valores, la tendencia, la #estacionalidad y el error
+descomposicion <-decompose(datos_analisis)
+#    presentamos la salida gráfica
+autoplot(descomposicion)+
+     labs(title="Descomposición de la serie Generación de Electricidad",
+          x="Año") 
+
+```
+
+## Estacionariedad, Autocorrelación, ACF y PACF.
+
+Imaginemos que tratamos de predecir el caudal de un río. Si el río cambia constantemente su parámetros de velocidad, caudal, curso... de forma impredecible ¡será muy difícil hacer predicciones! Pero si el río varia sus parámetros de manera predecible, predecir será mucho más fácil. Las series temporales son así y la clave es la estacionariedad para hacer predicciones confiables.
+
+Una serie temporal es **estacionaria** si sus propiedades estadísticas ( medida, varianza y estructura de autocorrelación) permanecen constantes en el tiempo. Si la serie no fuera estacionaria hemos de diferenciarla (calcular la diferencia entre observaciones consecutivas)
+
+La **autocorrelación** es simplemente la correlación de una serie temporal consigo misma en diferentes puntos en el tiempo. Nos dice cuanto se parece un valor actual a un valor pasado.
+
+La función de autocorrelación (ACF) mide la correlación entre un observación y una observación anterior, **incluyendo** los efectos de las observaciones intermedias. La ACF nos ayuda a identificar NO estacionariedad, estacionalidad y para un modelo ARIMA el orden MA(q)
+
+La función de autocorrelación parcial (PACF) mide la correlación entre una observación y una observación anterior después de eliminar la influencia de todas las observaciones intermedias. PACF nos ayuda a identificar el orden AR(p) de un modelo ARIMA.
+
+Para nuestra serie, gráficamente podemos obtener ACF y PACF mediante:
+
+```{r}
+#
+# Visualizamos la ACF de la serie original 
+ggAcf(datos_analisis, lag.max=36) +
+     labs(title="ACF del dataset datos_analisis",
+          subtitle="Picos significativos cada 12 meses (estacionalidad anual)")+
+     theme_minimal()
+#
+ggPacf(datos_analisis, lag.max=36) +
+     labs(title="PACF del dataset datos_analisis",
+          subtitle="Posible corte en lag 1-2(componente AR) + pico en lag 12")+
+     theme_minimal()
+
+```
+
+Como complemento al análisis gráfico, numéricamente podemos hacer la prueba de estacionariedad con la función *adf.test()*, si el valor de p-value es menor que el valor de significancia v.g. 0,05 se puede rechazar la hipótesis nula y concluir que la serie es estacionaria.
+
+```{r}
+#
+#    Prueba numérica estacionaridad (Prueba de Dickey-Fuller Aumentada)
+#Ho - la serie temporal NO es estacionaria
+#H1 - La serie temporal es estacionaria
+adf.test(datos_analisis)
+
+```
+
+## Modelo de suavizado exponencial (Holt-Winters).
+
+Los modelos de suavizado exponencial funcionan bajo esta premisa: Las observaciones más recientes de la serie temporal tienen más peso o importancia en el pronostico futuro que las observaciones más antiguas. La influencia de las observaciones pasadas disminuye exponencialmente a medida que se alejan en el tiempo.
+
+Los modelos Holt-Winters, son útiles para series como la nuestra que exhiben tendencia y/o estacionalidad. los tipos de modelos más comunes son :
+
+1.  Suavizado Exponencial Simple (SES) - series temporales que no tienen tendencia ni estacionalidad significativa.
+
+2.  Método de Holt (doble suavizado exponencial) - series temporales que presentan una tendencia, pero no estacionalidad.
+
+3.  Método de Holt-Winters (triple suavizado exponencial ) para series temporales que presentan tanto tendencia como estacionalidad.
+
+```{r}
+#
+#    Lanzamos un modelo Holt-Winters aditivo con la función ets(datos, Error, Tendencia, #Estacionalidad )
+#si observamos la descomposición de la serie, elegimos un modelo aditivo :
+# - la amplitud de las oscilaciones estacionales parece ser cte. a lo largo del tiempo
+# - la tendencia parece sumarse a un nivel base
+# - El errror ( remainder) parece cte. a lo largo del tiempo
+modelo_hw_aaa <- ets(datos_analisis, model="AAA")
+#    Mostramos : el tipo de modelo soleccionado, los valores de los parametros de suavizado y metricas de error utiles para compara distintos modelos 
+summary(modelo_hw_aaa)
+#    Pronosticamos la serie para los siguientes 24 meses
+pronostico_hw <- forecast(modelo_hw_aaa, h=24)
+#    Mostramos la serie original y sobre ella en rojo el modelo calculado.
+#- la linea azul oscuro a partir del final de la serie original, representan los pronosticos
+#- las areas sombreadas azul más claro y más oscuro son los intervalos de confianza (80% y 90% respectivamente)
+autoplot(pronostico_hw)+
+     labs(title="Pronostico de generación de lectricidad con Holt-Winters (ETS)",
+          x="Año", y="GWh")+
+     theme_minimal()+
+     autolayer(fitted(pronostico_hw), series="Valores ajustados", color="red")
+#
+print(pronostico_hw)
+
+```
+
+El modelo Holt-Winters es una herramienta muy potente porque captura bien tanto la tendencia a largo plazo como patrones estacionales repetitivos, lo que lo hace ideal para pronósticos en series como las ventas minoristas, el turismo, el consumo de energía, etc.
+
+En esta publicación hemos analizado un ejemplo sencillo, para los interesados en profundizar en el tema, les recomiendo: [Forecasting: Principles and Practice (3rd ed)](https://otexts.com/fpp3/) y su serie de vídeos en Youtube : [YouTube : Forecasting Principles and Practice](https://youtu.be/uwKiT1o1TkI?si=vrl3neuk93z3BOcG)

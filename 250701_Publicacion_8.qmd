@@ -1,0 +1,293 @@
+---
+title: "R_Básico_8"
+author: "J.Ballesta"
+format: 
+     docx:
+          fig-width: 6
+          fig-height: 4
+          css: styles.css
+          geometry: "a4paper"
+          author: "J.Ballesta"
+          date-format: "DD/MM/YY"
+          date: "01/07/25"
+          abstract: " En esta  publicación veremos un estudio introductorio de clustering jerarquico, para la agrupación de observaciones en función de unas variables predeterminadas.
+          In this publication, we will explore an introductory study of hierarchical clustering for grouping observations based on predetermined variables.
+          In dieser Publikation werden wir eine einführende Studie zum hierarchischen Clustering zur Gruppierung von Beobachtungen basierend auf vordefinierten Variablen behandeln.
+          " 
+          
+editor: visual
+---
+
+# Introducción.
+
+En algunas ocasiones se nos presentan casos en los que hemos de agrupar miembros de un grupo, observaciones de un experimento ... en función de determinadas características, por ejemplo :
+
+-   Agrupa estas ciudades, barrios ... en función de tasa de crimen, renta per capita media, número de usuarios de intenet.
+
+-   Agrupa estas fábricas en función de su nivel de ventas, rechazo, valor de almacén, número de personal
+
+-   Agrupa estos clientes en función de sus patrones de compras
+
+-   ....
+
+El análisis de conglomerados o *"cluster analysis"* en inglés hace exactamente esto con los datos disponibles
+
+En pocas palabras el análisis cluster es una técnica de aprendizaje no supervisado que busca encontrar grupos o conglomerados de observaciones que son similares entre si dentro de un conjunto de datos, pero diferentes de las observaciones en otros grupos.
+
+En esta publicación veremos un ejemplo sencillo de este tipo de análisis, llamado clustering jerárquico.
+
+# Librerías.
+
+```{r echo=FALSE}
+#
+#    Librerias
+library(tidyverse)
+library(DataExplorer)
+library(factoextra)
+library(knitr)
+#    para las salidas gráficas de ggplot2, fijamos el tema del gráfico en B/N y la leyenda #por defecto en la parte inferior de los gráficos
+theme_set(theme_bw()+
+               theme(legend.position="bottom"))
+
+```
+
+# Conjunto de datos
+
+Para nuestro análisis tomaremos los datos del data set *swiss* que clasifica los cantones suizos con 6 variables :
+
+1.  *\$Fertility* medida estandarizada de fertilidad.
+
+2.  *\$Agriculture* % de varones ocupados en la agricultura.
+
+3.  *\$Examination* % de llamados a filas con las notas más altas en el examen.
+
+4.  *\$Education* % de educación mas alla de primaria para los llamados a filas.
+
+5.  *\$Catholic* % de católicos.
+
+6.  *\$Infant.Mortality* cantidad de nacimientos que viven \<1año.
+
+```{r}
+#
+#    cargamos los datos en una variable de trabajo
+datos <- as.data.frame(swiss)
+# comprobamos que los datos han subido correctamente a R
+head (datos,5)
+# 
+tail(datos,5)
+# vemos la estructura de los datos y tipo de datos que tenemos
+str(datos)
+# vemos un resumen de los datos númericos del dataset - Columna 1 a 6  
+summary (datos[1:6])
+
+```
+
+Con la librería *DataExplorer* comprobamos más en detalle el estado de los datos (EDA: Exploratory Data Analysis):
+
+```{r}
+#
+#    una presentación general de los datos
+introduce(datos)
+#    ¿ están los datos completos? ¿ como son?
+plot_intro(datos)
+#    ¿ como se distribuyen las variables numéricas?
+plot_density(datos[1:6])
+
+```
+
+Comprobamos la presencia de valores atípicos.
+
+```{r}
+#
+#    vemos como están distribuidas las variables y si hay valores atipicos
+datos_boxplot <- datos [1:6] %>%
+               pivot_longer(cols = c ("Fertility", "Agriculture", "Examination", "Education", "Catholic", "Infant.Mortality"),
+                            names_to="Nombre_Variable", 
+                            values_to = "Valor")
+     
+# salida gráfica mediante geom_boxplot()
+datos_boxplot %>% 
+     ggplot(aes(x=Nombre_Variable, y=Valor))+
+     geom_boxplot()+
+     labs(title = "Dataset : Swiss. Distribución de las variables",
+          caption="Dataset : Swiss (package:datasets)",
+          x="Variable",
+          y="Valor")
+
+```
+
+De este último gráfico vemos que hay presencia de valores atípicos, y que las variables aunque están en % tienen diferente rango entre si. Respecto a los valores atípicos, dado que desconocemos el proceso de recolección de los datos no podemos hacer nada, y respecto a la dispersión de los valores usaremos la función *scale()* para normalizar las variables.
+
+# Clustering jerárquico.
+
+Este tipo de clustering crea una estructura de árbol llamada dendograma que muestra las relaciones jerárquicas entre las observaciones.
+
+Tipos principales :
+
+-   Aglomerativo (Bottom-up): cada observación empieza como su propio conglomerado y se van fusionando a los conglomerados más cercanos hasta formar un único conglomerado.
+
+-   Divisivo (Top-down): todas las observaciones empiezan en un gran conglomerado y se van separando hasta que cada observación es un conglomerado.
+
+La distancia de cercanía entre conglomerados se mide :
+
+-   Enlace único: la distancia entre dos conglomerados es la distancia mínima entre cualquier par de punto de esos conglomerados.
+
+-   Enlace completo: la distancia máxima entre cualquier par de puntos. Tiende a formar conglomerados más compactos.
+
+-   Enlace promedio. La distancia promedio entre entre todos los pares de puntos de los conglomerados.
+
+-   Método de Ward : Busca minimizar la varianza total dentro de los conglomerados.
+
+Para simplificar tomaremos **sólo** dos de las variables del dataset, para esta publicación. Esto nos permitirá ver gráficamente en dos dimensiones el resultado final del análisis, normalmente tomaríamos todas las variables del dataset (previamente hemos identificado que son necesarias en el estudio) y trabajaríamos con tablas de datos.
+
+```{r}
+#
+#    tomamos las variables $Agriculture y $Examination 
+datos_est <- datos[2:3]
+#    vemos numericamente como se distribuyen los datos 
+res_nor <- summary(datos_est)
+#
+kable(res_nor,
+      caption = "Estadisticas descriptivas de los datos sin escalar",
+      align="l", 
+      digits=2)
+#    vemos que el valor mediano de la variable agriculture es mayor que examination, para #evitar que la diferencia en valor altere el calculo de distancias, escalamos los datos
+datos_est <- as.data.frame(scale(datos_est))
+#
+res_esc <- summary(datos_est)
+#
+kable(res_esc,
+      caption = "Estadisticas descriptivas de los datos escalados",
+      align = "l", 
+      digits = 2)
+#    vemos gráficamente como se distribuyen  estos datos
+datos_box <- datos_est %>%
+     pivot_longer (
+          cols=c("Agriculture", "Examination"),
+          names_to = "Variables",
+          values_to="Valor"
+     )
+#
+ggplot(data=datos_box)+
+     geom_boxplot(aes(x=Variables, y=Valor))+
+     labs(title = "Swiss : Distr. Agriculture y Examinaton",
+          caption="Dataset : Swiss")+
+     xlab(" Variable")+
+     ylab( "Valor")
+
+```
+
+Una vez escalados los datos, calculamos el dendograma.
+
+```{r}
+#
+#    Calculamos la matriz de distancias entre los distintos valores medidos de las #variables usaremos el método de cálculo "euclidean"
+dist_matrix <- dist(datos_est, method = "euclidean")
+# aplicamos el método de clustering aglomerativo mediante la función hclust()
+hclust_result <- hclust(dist_matrix, method="ward.D2")
+# Visualizamos el dendograma por pantalla
+plot(hclust_result, 
+     cex=0.8,
+     main= "Dataset Swiss : Clustering de los cantones por Agriculture y Examination",
+     xlab="Observaciones",
+     y= "Distancia",
+     hang=-1)
+# estimamos que pueden agruparse en 4 grupos 
+grupos_k4 <-cutree(hclust_result, k=4)
+rect.hclust(hclust_result, k=4, border=c("red", "blue", "green","yellow"))
+# Comprobamos como se han distribuido cada uno de los grupos 
+print(table(grupos_k4))
+
+```
+
+Vemos que el 4 cluster (tiene a muy pocos cantones), dejaremos el estudio en tres clusters.
+
+```{r}
+#
+# comprobamos la distribución con tres cluster
+# estimamos que pueden agruparse en 3 grupos 
+#Visualizamos el dendograma por pantalla
+plot(hclust_result, 
+     cex=0.8,
+     main= "Dataset Swiss : Clustering de los cantones por Agriculture y Examination",
+     xlab="Observaciones",
+     y= "Distancia",
+     hang=-1)
+#
+grupos_k3 <-cutree(hclust_result, k=3)
+rect.hclust(hclust_result, k=3, border=c("red", "blue", "green"))
+#Comprobamos que como se han distribuido cada uno de los grupos 
+print(table(grupos_k3))
+```
+
+Vemos que la solución con cluster queda con un número parecido de cantones, probamos a 2 cluster.
+
+```{r}
+#
+# comprobamos la distribución con dos cluster
+# estimamos que pueden agruparse en 2 grupos 
+#Visualizamos el dendograma por pantalla
+plot(hclust_result, 
+     cex=0.8,
+     main= "Dataset Swiss : Clustering de los cantones por Agriculture y Examination",
+     xlab="Observaciones",
+     y= "Distancia",
+     hang=-1)
+#
+grupos_k2 <-cutree(hclust_result, k=2)
+rect.hclust(hclust_result, k=2, border=c("red", "blue"))
+#Comprobamos que como se han distribuido cada uno de los grupos
+print(table(grupos_k2))
+```
+
+Con dos cluster, queda un grupo demasiado grande respecto al otro, en este caso descartamos esta solución.
+
+Para terminar nuestro análisis, representaremos gráficamente los resultados y haremos un análisis ANOVA para comparar entre los dos grupos:
+
+```{r}
+#
+#    añadimos a los datos de estudio el resultado del reparto en clusters, en la columna #grupo
+datos_est$grupo <- as.factor (grupos_k3)
+#lanzamos el ANOVA para comprobar si hay diferencia de medias entre los grupos según las #variables
+resultados_Agriculture <- aov(Agriculture ~ grupo, data=datos_est)
+resultados_Examination <- aov(Examination ~ grupo, data=datos_est)
+# 
+summary(resultados_Agriculture)
+#
+summary(resultados_Examination)
+
+```
+
+Representamos gráficamente los resultados obtenidos en este estudio
+
+```{r}
+#
+#    De la libreria factoextra con la función fviz_cluster visualizamos la distribución de los #cluster resultantes.
+fviz_cluster(list(data=datos_est[1:2], cluster=datos_est$grupo), 
+             repel=TRUE, labelsize = 6)
+
+```
+
+Vemos que los cantones suizos en este dataset para las variables *Agriculture* y *Examination,* se pueden agrupar en 3 cluster
+
+1.  Cluster 1 : bajo porcentaje de varones en actividades agrícolas y bajas notas en el examen de entrada al ejercito.
+
+2.  Cluster 2: alto porcentaje de varones en actividades agrícolas y en genera baja puntuación en el examen de entrada en el ejercito.
+
+3.  Cluster 3 : cantones con altas puntuaciones en el examen de ingreso en el ejercito y bajo % de varones en actividades agrícolas.
+
+Para la elección del número de clusters, existen otros métodos numéricos ("codo", la silueta") que evitan la subjetividad de estimar este número visualmente.
+
+# Siguientes pasos....
+
+Hemos presentado en esta publicación una introducción sencilla al análisis de cluster, hay más métodos que a continuación listaremos :
+
+-   K-Means : Divide los datos en "k" conglomerados, donde "k" es un número especificado de antemano ( el resultado del clustering jerárquico puede ser un comienzo)
+
+-   K-Medoides (PAM-Partitioning Around Medoids): similar a K-Means, pero en lugar de usar el promedio como centro del conglomerados, usa una observación real (medoide) más representativa de su conglomerado. Es más robusto a valores atípicos
+
+-   DBSCAN : Encuentra conglomerados basados en la densidad de puntos.
+
+-   GMM : Asume que los datos provienen de una mezcla de varias distribuciones gausianas. Cada conglomerado es representado por una distribución gausiana.
+
+En función de la solución que obtengamos hemos de decidir si esa información es correcta para nuestras necesidades y en caso necesario ampliar el estudio con alguna otra alternativa.
